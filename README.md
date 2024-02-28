@@ -1,4 +1,4 @@
-# clair-f2f
+# speech-analytics
 
 Documentation under construction.
 
@@ -18,7 +18,6 @@ Additional GPU setup (if applicable to your machine) to enable `device="cuda"`. 
 ```
 pip install torch==1.13.1+cu117 torchaudio==0.13.1+cu117 --index-url https://download.pytorch.org/whl/cu117
 ```
-
 
 ### Usage
 
