@@ -3,9 +3,10 @@ import json
 import pandas as pd
 import copy
 import re
-import hashlib
-from termcolor import colored
 
+"""
+Functions to interact with Clair API
+"""
 
 def activate_configuration(mode: str, language: str, keywords: list, host: str):
     # Define configuration
@@ -24,19 +25,6 @@ def activate_configuration(mode: str, language: str, keywords: list, host: str):
     print(req, req.text, req.status_code, req.reason)
     return req
 
-def color_speaker(json_str):
-    color_mapping = {
-        '0': 'magenta',
-        '1': 'blue',
-        '2': 'green',
-        '3': 'yellow',
-        '4': 'red',
-    }
-    def replace_func(match):
-        speaker_num = match.group(1)
-        color = color_mapping.get(speaker_num, 'white')  # Default to 'white' if speaker number is out of range
-        return colored(f'Speaker{speaker_num}', color)
-    return re.sub(r'Speaker(\d)', replace_func, json_str)
     
 def parse_turn(transcription: str, dialogue: list):
     if len(dialogue) == 0:
@@ -100,7 +88,7 @@ def parse_turn(transcription: str, dialogue: list):
     return turn, dialogue, is_new_turn
 
 
-def buffering_turn(transcription: str, dialogue: list, verbose: bool = False):
+def buffering_turn(transcription: str, dialogue: list, group: str, verbose: bool = False):
     """
     Buffer the transcription and return the turn if there is a new one.
 
@@ -115,8 +103,8 @@ def buffering_turn(transcription: str, dialogue: list, verbose: bool = False):
     # In this function we delay the turn processing until we have a new turn
     # Pretty print the microphone input
     if verbose:
-        print(colored("\n🎙️ Microphone input received 🎙️ ", 'white', 'on_green'))
-        print(color_speaker('\n'.join([transcription[i:i+100] for i in range(0, len(transcription), 100)])))
+        print("\n\t🎙️ Microphone input received 🎙️ ")
+        print('\n'.join([transcription[i:i+100] for i in range(0, len(transcription), 100)]))
     _, dialogue, is_new_turn = parse_turn(transcription, dialogue)
     # If there is a new turn, return the previous turn (which now we know that has ended) to be evaluated
     if any(is_new_turn) and len(dialogue) > 1:
@@ -126,33 +114,31 @@ def buffering_turn(transcription: str, dialogue: list, verbose: bool = False):
         turn = None # sentinel value
     # Pretty print turn
     if verbose and turn:
-        # def print_str_in_chunks(s: str, n: int):
-        #     for i in range(0, len(s), n):
-        #         print(s[i:i+n])
-        print(colored("\n💬 A turn was completed 💬", 'black', 'on_light_red'))
+        turn['group'] = group
+        print("\n\t💬 A turn was completed 💬")
         formatted_turn = copy.deepcopy(turn)
         # Check and modify the 'text' field of the copied dict only if it's too long
         if len(formatted_turn['text']) > 50:
-            formatted_turn['text'] = [formatted_turn['text'][i:i+50] for i in range(0, len(formatted_turn['text']), 50)]
+            formatted_turn['text'] = [formatted_turn['text'][i:i+80] for i in range(0, len(formatted_turn['text']), 50)]
         # Get the JSON string
         json_str = json.dumps(formatted_turn, default=lambda obj: obj.strftime("%Y-%m-%d %H:%M:%S") if isinstance(obj, pd.Timestamp) else type(obj).__name__, indent=2)
         # Print the string
-        print(color_speaker(json_str))
-        print(colored("\n🔄 Dialogue 🔄", 'black', 'on_light_yellow'))
-        print("Number of turns:", len(dialogue))
-        print("Number of speakers:", len(set([item['username'] for item in dialogue])))
-        print("Time duration:", dialogue[-1]['timestamp'] - dialogue[0]['timestamp']) 
-        print("====================================\n")
+        print(json_str)
+        print("\n\t🔄 Dialogue 🔄")
+        print("\tNumber of turns:", len(dialogue))
+        print("\tNumber of speakers:", len(set([item['username'] for item in dialogue])))
+        print("\tTime duration:", dialogue[-1]['timestamp'] - dialogue[0]['timestamp']) 
+        print("\t====================================\n")
     return turn 
 
 
-def send_to_api_and_get_response(username: str, text: str, timestamp: int, host: str, verbose: bool = True):
+def send_to_api_and_get_response(group: str, username: str, text: str, timestamp: int, host: str, verbose: bool = True):
     # Look for repeated sequences (BUG in Whisper)
     if re.search(r'(\b\w+(?:\s+\w+)*\.\s+)(\1{2,})', text):
         raise ValueError("ERROR: The transcription contained repetitive sentences. Please restart your audio source and try again.")
     message = {
         "learning_space": "dev/clair-f2f",
-        "group": hashlib.md5(pd.Timestamp.now().strftime('%Y%m%d%H%M%S').encode()).hexdigest()[:4],
+        "group": group,
         "username": username,
         "text": text,
         "timestamp": timestamp.strftime("%Y-%m-%d %H:%M:%S")
@@ -172,8 +158,12 @@ def send_to_api_and_get_response(username: str, text: str, timestamp: int, host:
         "transcription": f"{username} ({timestamp}): {text}",
         "response": response
     }
+
+    # Play audio file with the response
     if verbose and response:
-        print(colored("\n⭐ Intervention received ⭐ ", 'yellow'))
-        print(color_speaker(json.dumps(combined_output, default=lambda obj: obj.strftime("%Y-%m-%d %H:%M:%S") if isinstance(obj, pd.Timestamp) else type(obj).__name__, indent=2)))
-        print("====================================\n")
+        print("\n\t⭐ Clair's response ⭐")
+        print(json.dumps(combined_output, default=lambda obj: obj.strftime("%Y-%m-%d %H:%M:%S") if isinstance(obj, pd.Timestamp) else type(obj).__name__, indent=2))
+        print("\t====================================\n")
+    
     return json.dumps(combined_output, indent=2)
+

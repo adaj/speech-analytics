@@ -1,2 +1,5 @@
 archive
 dialogue_state.json
+logs/*.txt
+**/__pycache__/
+*.pyc
