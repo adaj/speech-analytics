@@ -32,6 +32,7 @@ def listen_server(ws):
             output = ws.recv()
             # Transform output to dictionary
             output = json.loads(output)
+            print(output)
 
             # # Parse the output for logging
             # text = output['transcription'].split(":")
