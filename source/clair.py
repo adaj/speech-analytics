@@ -26,7 +26,7 @@ def activate_configuration(mode: str, language: str, keywords: list, host: str):
     return req
 
     
-def parse_turn(transcription: str, dialogue: list):
+def parse_turn(transcription: str, dialogue: list, turn_threshold: int = 5):
     if len(dialogue) == 0:
         last_timestamp = pd.to_datetime("2000-01-01")
         last_user = ""
@@ -52,8 +52,8 @@ def parse_turn(transcription: str, dialogue: list):
             if len(items) == 2:
                 username = items[0]
                 text = items[1]
-                # if come within 10 seconds and is from the same username, it's not a new turn
-                if last_user == username and 0 < timedelta < 10:
+                # if come within N seconds and is from the same username, it's not a new turn
+                if last_user == username and 0 < timedelta < turn_threshold:
                     new_turn = False
             # if there is one part ("text") only, it's not a new turn
             elif len(items) == 1:
@@ -88,13 +88,15 @@ def parse_turn(transcription: str, dialogue: list):
     return turn, dialogue, is_new_turn
 
 
-def buffering_turn(transcription: str, dialogue: list, group: str, verbose: bool = False):
+def buffering_turn(transcription: str, dialogue: list, group: str, turn_threshold: int, verbose: bool = False):
     """
     Buffer the transcription and return the turn if there is a new one.
 
     Args:
     - transcription (str): The transcription to be buffered
     - dialogue (list): The dialogue to be updated
+    - group (str): The group to which the dialogue belongs
+    - turn_threshold (int): The time (seconds) threshold to consider a new turn
     - verbose (bool): Whether to print the transcription and the turn
 
     Returns:
@@ -105,13 +107,15 @@ def buffering_turn(transcription: str, dialogue: list, group: str, verbose: bool
     if verbose:
         print("\n\t🎙️ Microphone input received 🎙️ ")
         print('\n'.join([transcription[i:i+100] for i in range(0, len(transcription), 100)]))
-    _, dialogue, is_new_turn = parse_turn(transcription, dialogue)
+    _, dialogue, is_new_turn = parse_turn(transcription, dialogue, turn_threshold)
+    
     # If there is a new turn, return the previous turn (which now we know that has ended) to be evaluated
     if any(is_new_turn) and len(dialogue) > 1:
         # dialogue[-1] would be the new turn in progress, so dialogue[-2] is the turn before
         turn = dialogue[-2] 
     else: # If there is not a new turn, keep buffering
         turn = None # sentinel value
+
     # Pretty print turn
     if verbose and turn:
         turn['group'] = group
@@ -129,10 +133,12 @@ def buffering_turn(transcription: str, dialogue: list, group: str, verbose: bool
         print("\tNumber of speakers:", len(set([item['username'] for item in dialogue])))
         print("\tTime duration:", dialogue[-1]['timestamp'] - dialogue[0]['timestamp']) 
         print("\t====================================\n")
+
     return turn 
 
 
 def send_to_api_and_get_response(group: str, username: str, text: str, timestamp: int, host: str, verbose: bool = True):
+
     # Look for repeated sequences (BUG in Whisper)
     if re.search(r'(\b\w+(?:\s+\w+)*\.\s+)(\1{2,})', text):
         raise ValueError("ERROR: The transcription contained repetitive sentences. Please restart your audio source and try again.")
@@ -148,19 +154,15 @@ def send_to_api_and_get_response(group: str, username: str, text: str, timestamp
                         data=json.dumps(message),
                         timeout=20)
     output = req.json()
-    if output['agent_intervention'] is not None:
-        # Get the API response
-        response = "Clair: " + output['agent_intervention']
-    else:
-        response = None
     # Combine the original transcription with the API response
     combined_output = {
-        "transcription": f"{username} ({timestamp}): {text}",
-        "response": response
+        "transcription": f"{username} ({str(timestamp)[:19]}): {text}",
+        "response": output['agent_intervention'],
+        'selected_move': output['selected_move']
     }
 
     # Play audio file with the response
-    if verbose and response:
+    if verbose and output['agent_intervention']:
         print("\n\t⭐ Clair's response ⭐")
         print(json.dumps(combined_output, default=lambda obj: obj.strftime("%Y-%m-%d %H:%M:%S") if isinstance(obj, pd.Timestamp) else type(obj).__name__, indent=2))
         print("\t====================================\n")
