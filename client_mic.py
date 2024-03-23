@@ -9,7 +9,9 @@ from diart.utils import encode_audio
 import dotenv
 import threading 
 import pyttsx3
-import playsound
+from pydub import AudioSegment
+from pydub.playback import play
+
 
 # Load environment variables
 dotenv.load_dotenv()
@@ -23,7 +25,6 @@ AUDIO_FOLDER_PATH = os.environ.get("AUDIO_FOLDER_PATH")
 AUDIO_FOLDER_PATH = AUDIO_FOLDER_PATH.replace("\\", "/")
 if AUDIO_FOLDER_PATH[-1] == "/":
     AUDIO_FOLDER_PATH = AUDIO_FOLDER_PATH[:-1]
-
 
 
 class ClairManager:
@@ -59,8 +60,13 @@ class ClairManager:
         self.tts.setProperty('voice', 'HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Speech\Voices\Tokens\TTS_MS_EN-US_ZIRA_11.0')
 
     def play_audio(self, talk_move):
-        variation = random.choice(self.talk_moves[talk_move])
-        playsound.playsound(self.audio_files[talk_move][variation])
+        try:
+            variation = random.choice(self.talk_moves[talk_move])
+            file_path = self.audio_files[talk_move][variation]
+            play(AudioSegment.from_mp3(file_path))
+        except:
+            print(f"ERROR: Audio file not found for the talk_move {talk_move}")
+            pass
 
     def say(self, text):
         self.tts.say(text)

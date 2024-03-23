@@ -10,7 +10,7 @@ Documentation under construction...
 conda create --name <name_your_env> python=3.10
 conda activate <name_your_env>
 conda install portaudio=19.6.0 pysoundfile=0.12.1 ffmpeg=4.3 -c conda-forge
-pip install python-dotenv==1.0.1 termcolor==2.4.0 diart==0.7 whisper_timestamped==1.12.20 onnxruntime==1.17.1 playsound==1.3.0 pyaudio==0.2.11 pyttsx3==2.90
+pip install python-dotenv==1.0.1 termcolor==2.4.0 diart==0.7 whisper_timestamped==1.12.20 onnxruntime==1.17.1 pydub==0.25.1 simpleaudio==1.0.4 pyttsx3==2.90
 ```
 
 Additional GPU setup (if applicable to your machine) to enable `device="cuda"`. Otherwise, use `device="cpu"` instead in your decoder code.
