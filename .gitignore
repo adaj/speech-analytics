@@ -1,0 +1,6 @@
+archive
+dialogue_state.json
+logs/*.txt
+logs/*.csv
+**/__pycache__/
+*.pyc
